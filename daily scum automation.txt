@@ -1,0 +1,472 @@
+
+/************************************************************
+ * DAILY SCRUM AUTOMATION
+ *
+ * 1. New date always appears at the top.
+ * 2. One blank spacer row between date groups.
+ * 3. Saturday and Sunday are skipped.
+ * 4. Team member names are copied automatically.
+ * 5. Old Column D -> New Column C.
+ * 6. Hyperlinks are preserved.
+ * 7. Old Scrum records remain unchanged.
+ ************************************************************/
+
+
+// ================= CONFIGURATION =================
+
+const CONFIG = {
+
+  // true = Demo date
+  // false = Actual current date
+  DEMO_MODE: true,
+
+  DEMO_DATE: "2026-11-03",
+
+
+  HOLIDAYS: [
+  "2026-01-01", // New Year Eve (date supplied)
+  "2026-01-26", // Republic Day
+  "2026-03-04", // Holi
+  "2026-04-03", // Good Friday
+  "2026-06-15", // Raja Festival
+  "2026-06-26", // Muharram
+  "2026-09-14", // Ganesh Chaturthi
+  "2026-10-02", // Gandhi Jayanti
+  "2026-10-20", // Dushera
+  "2026-12-25"  // Christmas
+],
+
+  HEADER_ROW: 1,
+  FIRST_DATA_ROW: 2,
+
+  DATE_COLUMN: 1,
+  TEAM_COLUMN: 2,
+
+  YESTERDAY_COLUMN: 3,
+  TODAY_COLUMN: 4,
+
+  TOTAL_COLUMNS: 7,
+
+  // Blank space between date groups
+  GAP_ROWS: 1,
+  GAP_HEIGHT: 18
+
+};
+
+
+// ================= ON OPEN =================
+
+function onOpen() {
+  createDailyScrumBlocks();
+}
+
+
+function getLatestSheet() {
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // Get all visible tabs
+  const sheets = ss.getSheets().filter(
+    sheet => !sheet.isSheetHidden()
+  );
+
+  if (sheets.length === 0) {
+    throw new Error("No visible sheets found.");
+  }
+
+  // First tab = latest tab
+  return sheets[0];
+}
+
+// ================= MAIN FUNCTION =================
+
+function createDailyScrumBlocks() {
+
+  const lock = LockService.getDocumentLock();
+
+  if (!lock.tryLock(30000)) return;
+
+  try {
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+   // const sheet = ss.getActiveSheet();
+
+   const sheet = getLatestSheet();
+
+    const timezone = ss.getSpreadsheetTimeZone();
+
+    const FIRST_ROW = CONFIG.FIRST_DATA_ROW;
+
+    // Get latest date group
+    const dateCell = sheet.getRange(
+      FIRST_ROW,
+      CONFIG.DATE_COLUMN
+    );
+
+    const mergedRanges = dateCell.getMergedRanges();
+
+    if (mergedRanges.length === 0) {
+      throw new Error("Please merge A2 across all team members.");
+    }
+
+   // Count all team members from Column B
+const lastRow = sheet.getLastRow();
+
+const teamNames = sheet.getRange(
+  FIRST_ROW,
+  CONFIG.TEAM_COLUMN,
+  lastRow - FIRST_ROW + 1,
+  1
+).getValues();
+
+let teamCount = 0;
+
+for (const row of teamNames) {
+  if (row[0].toString().trim() === "") {
+    break;
+  }
+
+  teamCount++;
+}
+
+if (teamCount === 0) {
+  throw new Error("No team members found.");
+}
+
+    const latestDate = dateCell.getValue();
+
+    if (!(latestDate instanceof Date)) {
+      throw new Error("A2 must contain a valid date.");
+    }
+
+    const latestKey = Utilities.formatDate(
+      latestDate,
+      timezone,
+      "yyyy-MM-dd"
+    );
+
+    // Demo date or actual date
+    const targetKey = CONFIG.DEMO_MODE
+      ? CONFIG.DEMO_DATE
+      : Utilities.formatDate(
+          new Date(),
+          timezone,
+          "yyyy-MM-dd"
+        );
+
+    // Start from the next day
+    const parts = latestKey.split("-").map(Number);
+
+    let current = new Date(Date.UTC(
+      parts[0],
+      parts[1] - 1,
+      parts[2] + 1
+    ));
+
+    const targetParts = targetKey.split("-").map(Number);
+
+    const targetUTC = Date.UTC(
+      targetParts[0],
+      targetParts[1] - 1,
+      targetParts[2]
+    );
+
+    // Create missing working-day blocks
+    while (current.getTime() <= targetUTC) {
+
+      const day = current.getUTCDay();
+
+      // Skip Saturday and Sunday
+      if (day !== 0 && day !== 6 && !CONFIG.HOLIDAYS.includes(newDateKey))  {
+
+        const newDateKey = Utilities.formatDate(
+          current,
+          "UTC",
+          "yyyy-MM-dd"
+        );
+
+        insertScrumBlock(
+          sheet,
+          teamCount,
+          newDateKey,
+          timezone
+        );
+
+      }
+
+      current.setUTCDate(
+        current.getUTCDate() + 1
+      );
+
+    }
+
+  } finally {
+
+    lock.releaseLock();
+
+  }
+
+}
+
+
+// ================= INSERT SCRUM BLOCK =================
+
+function insertScrumBlock(
+  sheet,
+  teamCount,
+  dateKey,
+  timezone
+) {
+
+  const FIRST_ROW = CONFIG.FIRST_DATA_ROW;
+  const TOTAL_COLUMNS = CONFIG.TOTAL_COLUMNS;
+
+  // Preserve team member names
+  const names = sheet.getRange(
+    FIRST_ROW,
+    CONFIG.TEAM_COLUMN,
+    teamCount,
+    1
+  ).getValues();
+
+  // Insert team rows + one blank spacer row
+  const rowsToInsert = teamCount + CONFIG.GAP_ROWS;
+
+  sheet.insertRowsBefore(
+    FIRST_ROW,
+    rowsToInsert
+  );
+
+  // New Scrum section
+  const newBlock = sheet.getRange(
+    FIRST_ROW,
+    1,
+    teamCount,
+    TOTAL_COLUMNS
+  );
+
+  // Previous Scrum section
+  const oldStart = FIRST_ROW + rowsToInsert;
+
+  const oldBlock = sheet.getRange(
+    oldStart,
+    1,
+    teamCount,
+    TOTAL_COLUMNS
+  );
+
+  // Copy previous formatting
+  oldBlock.copyTo(
+    newBlock,
+    SpreadsheetApp.CopyPasteType.PASTE_FORMAT,
+    false
+  );
+
+  // Remove copied merged cells
+  newBlock.breakApart();
+
+  // Preserve row heights
+  for (let i = 0; i < teamCount; i++) {
+
+    const height = sheet.getRowHeight(oldStart + i);
+
+    sheet.setRowHeight(
+      FIRST_ROW + i,
+      height
+    );
+
+  }
+
+  // Clear new block content
+  newBlock.clearContent();
+
+  // Restore team member names
+  sheet.getRange(
+    FIRST_ROW,
+    CONFIG.TEAM_COLUMN,
+    teamCount,
+    1
+  ).setValues(names);
+
+
+  // ==================================================
+  // COPY OLD COLUMN D -> NEW COLUMN C
+  // PRESERVE CLICKABLE HYPERLINKS
+  // ==================================================
+
+  const oldTodayData = sheet.getRange(
+    oldStart,
+    CONFIG.TODAY_COLUMN,
+    teamCount,
+    1
+  );
+
+  const newYesterdayData = sheet.getRange(
+    FIRST_ROW,
+    CONFIG.YESTERDAY_COLUMN,
+    teamCount,
+    1
+  );
+
+  // Copy values, links and formulas
+  oldTodayData.copyTo(
+    newYesterdayData,
+    SpreadsheetApp.CopyPasteType.PASTE_NORMAL,
+    false
+  );
+
+  // Restore original Column C formatting
+  const oldYesterdayFormat = sheet.getRange(
+    oldStart,
+    CONFIG.YESTERDAY_COLUMN,
+    teamCount,
+    1
+  );
+
+  oldYesterdayFormat.copyTo(
+    newYesterdayData,
+    SpreadsheetApp.CopyPasteType.PASTE_FORMAT,
+    false
+  );
+
+
+  // ==================================================
+  // KEEP NEW TODAY COLUMN BLANK
+  // ==================================================
+
+  sheet.getRange(
+    FIRST_ROW,
+    CONFIG.TODAY_COLUMN,
+    teamCount,
+    1
+  ).clearContent();
+
+
+  // ==================================================
+  // MERGE DATE CELL
+  // ==================================================
+
+  const dateRange = sheet.getRange(
+    FIRST_ROW,
+    CONFIG.DATE_COLUMN,
+    teamCount,
+    1
+  );
+
+  dateRange.merge();
+
+  const newDate = Utilities.parseDate(
+    dateKey,
+    timezone,
+    "yyyy-MM-dd"
+  );
+
+  dateRange
+    .setValue(newDate)
+    .setNumberFormat("d MMM yyyy")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle");
+
+
+  // ==================================================
+  // CREATE BLANK GAP AFTER NEW SCRUM SECTION
+  // ==================================================
+
+  sheet.setRowHeight(
+    FIRST_ROW + teamCount,
+    CONFIG.GAP_HEIGHT
+  );
+
+}
+
+
+// ================= ONE-TIME REPAIR =================
+
+/*
+ Run this function ONCE to fix your existing
+ latest Scrum section created by the old script.
+
+ It will:
+ 1. Add a blank gap if missing.
+ 2. Copy old Column D into new Column C.
+ 3. Preserve clickable hyperlinks.
+*/
+
+function repairExistingTopBlock() {
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getActiveSheet();
+
+  const FIRST_ROW = CONFIG.FIRST_DATA_ROW;
+  const TOTAL_COLUMNS = CONFIG.TOTAL_COLUMNS;
+
+  const dateCell = sheet.getRange(FIRST_ROW, 1);
+  const mergedRanges = dateCell.getMergedRanges();
+
+  if (mergedRanges.length === 0) {
+    throw new Error("A2 must be merged across team members.");
+  }
+
+  const teamCount = mergedRanges[0].getNumRows();
+
+  // Check whether a blank spacer row already exists
+  const possibleGapRow = FIRST_ROW + teamCount;
+
+  const gapValues = sheet.getRange(
+    possibleGapRow,
+    1,
+    1,
+    TOTAL_COLUMNS
+  ).getDisplayValues()[0];
+
+  const gapExists = gapValues.every(
+    value => value.trim() === ""
+  );
+
+  // Add gap if missing
+  if (!gapExists) {
+    sheet.insertRowsBefore(possibleGapRow, 1);
+  }
+
+  sheet.setRowHeight(
+    possibleGapRow,
+    CONFIG.GAP_HEIGHT
+  );
+
+  // Previous date now starts below the gap
+  const oldStart = possibleGapRow + 1;
+
+  const oldTodayData = sheet.getRange(
+    oldStart,
+    CONFIG.TODAY_COLUMN,
+    teamCount,
+    1
+  );
+
+  const newYesterdayData = sheet.getRange(
+    FIRST_ROW,
+    CONFIG.YESTERDAY_COLUMN,
+    teamCount,
+    1
+  );
+
+  // Copy hyperlinks and values
+  oldTodayData.copyTo(
+    newYesterdayData,
+    SpreadsheetApp.CopyPasteType.PASTE_NORMAL,
+    false
+  );
+
+  // Restore Column C formatting
+  sheet.getRange(
+    oldStart,
+    CONFIG.YESTERDAY_COLUMN,
+    teamCount,
+    1
+  ).copyTo(
+    newYesterdayData,
+    SpreadsheetApp.CopyPasteType.PASTE_FORMAT,
+    false
+  );
+
+}
