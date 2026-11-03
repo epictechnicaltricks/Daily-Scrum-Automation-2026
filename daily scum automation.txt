@@ -18,22 +18,72 @@ const CONFIG = {
 
   // true = Demo date
   // false = Actual current date
-  DEMO_MODE: true,
-
+  DEMO_MODE: false,
   DEMO_DATE: "2026-11-03",
 
 
   HOLIDAYS: [
-  "2026-01-01", // New Year Eve (date supplied)
+
+  // ================= 2026 =================
+  "2026-01-01", // New Year's Day
   "2026-01-26", // Republic Day
   "2026-03-04", // Holi
   "2026-04-03", // Good Friday
-  "2026-06-15", // Raja Festival
+  "2026-06-15", // Raja Sankranti
   "2026-06-26", // Muharram
-  "2026-09-14", // Ganesh Chaturthi
+  "2026-09-14", // Ganesh Puja
   "2026-10-02", // Gandhi Jayanti
-  "2026-10-20", // Dushera
-  "2026-12-25"  // Christmas
+  "2026-10-20", // Dussehra
+  "2026-12-25", // Christmas
+
+  // ================= 2027 =================
+  "2027-01-01", // New Year's Day
+  "2027-01-26", // Republic Day
+  "2027-03-23", // Holi
+  "2027-03-26", // Good Friday
+  "2027-06-15", // Raja Sankranti
+  "2027-06-16", // Muharram
+  "2027-09-04", // Ganesh Puja
+  "2027-10-02", // Gandhi Jayanti
+  "2027-10-09", // Dussehra
+  "2027-12-25", // Christmas
+
+  // ================= 2028 =================
+  "2028-01-01", // New Year's Day
+  "2028-01-26", // Republic Day
+  "2028-03-11", // Holi
+  "2028-04-14", // Good Friday
+  "2028-06-15", // Raja Sankranti
+  "2028-06-04", // Muharram
+  "2028-08-23", // Ganesh Puja
+  "2028-10-02", // Gandhi Jayanti
+  "2028-09-27", // Dussehra
+  "2028-12-25", // Christmas
+
+  // ================= 2029 =================
+  "2029-01-01", // New Year's Day
+  "2029-01-26", // Republic Day
+  "2029-03-01", // Holi
+  "2029-03-30", // Good Friday
+  "2029-06-15", // Raja Sankranti
+  "2029-05-25", // Muharram
+  "2029-09-11", // Ganesh Puja
+  "2029-10-02", // Gandhi Jayanti
+  "2029-10-16", // Dussehra
+  "2029-12-25", // Christmas
+
+  // ================= 2030 =================
+  "2030-01-01", // New Year's Day
+  "2030-01-26", // Republic Day
+  "2030-03-20", // Holi
+  "2030-04-19", // Good Friday
+  "2030-06-15", // Raja Sankranti
+  "2030-05-14", // Muharram
+  "2030-09-01", // Ganesh Puja
+  "2030-10-02", // Gandhi Jayanti
+  "2030-10-06", // Dussehra
+  "2030-12-25"  // Christmas
+
 ],
 
   HEADER_ROW: 1,
@@ -172,33 +222,38 @@ if (teamCount === 0) {
     );
 
     // Create missing working-day blocks
-    while (current.getTime() <= targetUTC) {
+while (current.getTime() <= targetUTC) {
 
-      const day = current.getUTCDay();
+  const day = current.getUTCDay();
 
-      // Skip Saturday and Sunday
-      if (day !== 0 && day !== 6 && !CONFIG.HOLIDAYS.includes(newDateKey))  {
+  // Generate date before checking holidays
+  const newDateKey = Utilities.formatDate(
+    current,
+    "UTC",
+    "yyyy-MM-dd"
+  );
 
-        const newDateKey = Utilities.formatDate(
-          current,
-          "UTC",
-          "yyyy-MM-dd"
-        );
+  // Skip Saturday, Sunday and holidays
+  if (
+    day !== 0 &&
+    day !== 6 &&
+    !CONFIG.HOLIDAYS.includes(newDateKey)
+  ) {
 
-        insertScrumBlock(
-          sheet,
-          teamCount,
-          newDateKey,
-          timezone
-        );
+    insertScrumBlock(
+      sheet,
+      teamCount,
+      newDateKey,
+      timezone
+    );
 
-      }
+  }
 
-      current.setUTCDate(
-        current.getUTCDate() + 1
-      );
+  current.setUTCDate(
+    current.getUTCDate() + 1
+  );
 
-    }
+}
 
   } finally {
 
